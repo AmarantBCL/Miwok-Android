@@ -1,8 +1,5 @@
 package com.example.android.miwok;
 
-import androidx.annotation.RequiresApi;
-import androidx.appcompat.app.AppCompatActivity;
-
 import android.content.Context;
 import android.media.AudioAttributes;
 import android.media.AudioFocusRequest;
@@ -10,25 +7,50 @@ import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AdapterView;
 import android.widget.ListView;
 
+import androidx.annotation.RequiresApi;
+import androidx.fragment.app.Fragment;
+
 import java.util.ArrayList;
 
-public class FamilyActivity extends AppCompatActivity {
+public class FamilyFragment extends Fragment {
     private MediaPlayer mediaPlayer;
-
     private AudioManager audioManager;
+
     private AudioAttributes audioAttributes;
     private AudioFocusRequest audioFocusRequest;
     private final Object focusLock = new Object();
 
+    private AudioManager.OnAudioFocusChangeListener focusChangeListener = new AudioManager.OnAudioFocusChangeListener() {
+        @RequiresApi(api = Build.VERSION_CODES.O)
+        @Override
+        public void onAudioFocusChange(int focusChange) {
+            if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT ||
+                    focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
+                mediaPlayer.pause();
+                mediaPlayer.seekTo(0);
+            } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
+                mediaPlayer.start();
+            } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
+                releaseMediaPlayer();
+            }
+        }
+    };
+
+    public FamilyFragment() {
+
+    }
+
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_word_list);
+    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+                             Bundle savedInstanceState) {
+        View rootView = inflater.inflate(R.layout.activity_word_list, container, false);
 
         final ArrayList<Word> words = new ArrayList<>();
         words.add(new Word("father", "әpә", R.drawable.family_father, R.raw.family_father));
@@ -42,11 +64,11 @@ public class FamilyActivity extends AppCompatActivity {
         words.add(new Word("grandmother", "ama", R.drawable.family_grandmother, R.raw.family_grandmother));
         words.add(new Word("grandfather", "paapa", R.drawable.family_grandfather, R.raw.family_grandfather));
 
-        WordAdapter itemsAdapter = new WordAdapter(this, words, R.color.category_family);
-        ListView listView = (ListView) findViewById(R.id.list);
+        WordAdapter itemsAdapter = new WordAdapter(getActivity(), words, R.color.category_family);
+        ListView listView = rootView.findViewById(R.id.list);
         listView.setAdapter(itemsAdapter);
 
-        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
+        audioManager = (AudioManager) getActivity().getSystemService(Context.AUDIO_SERVICE);
 
         audioAttributes = new AudioAttributes.Builder()
                 .setUsage(AudioAttributes.USAGE_MEDIA)
@@ -59,24 +81,26 @@ public class FamilyActivity extends AppCompatActivity {
                 .build();
 
         listView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @RequiresApi(api = Build.VERSION_CODES.O)
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
                 releaseMediaPlayer();
                 int focusRequest = audioManager.requestAudioFocus(audioFocusRequest);
                 synchronized (focusLock) {
                     if (focusRequest == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                        mediaPlayer = MediaPlayer.create(FamilyActivity.this, words.get(i).getAudioResource());
+                        mediaPlayer = MediaPlayer.create(getActivity(), words.get(i).getAudioResource());
                         mediaPlayer.start();
                         mediaPlayer.setOnCompletionListener(player -> releaseMediaPlayer());
                     }
                 }
             }
         });
+        return rootView;
     }
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     @Override
-    protected void onStop() {
+    public void onStop() {
         super.onStop();
         releaseMediaPlayer();
     }
@@ -89,21 +113,4 @@ public class FamilyActivity extends AppCompatActivity {
             audioManager.abandonAudioFocusRequest(audioFocusRequest);
         }
     }
-
-    private AudioManager.OnAudioFocusChangeListener focusChangeListener =
-            new AudioManager.OnAudioFocusChangeListener() {
-                @RequiresApi(api = Build.VERSION_CODES.O)
-                @Override
-                public void onAudioFocusChange(int focusChange) {
-                    if (focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT ||
-                            focusChange == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) {
-                        mediaPlayer.pause();
-                        mediaPlayer.seekTo(0);
-                    } else if (focusChange == AudioManager.AUDIOFOCUS_GAIN) {
-                        mediaPlayer.start();
-                    } else if (focusChange == AudioManager.AUDIOFOCUS_LOSS) {
-                        releaseMediaPlayer();
-                    }
-                }
-            };
 }
